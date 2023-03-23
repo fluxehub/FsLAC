@@ -1,4 +1,6 @@
+[<AutoOpen>]
 module FsLAC.Types
+
 
 type StreamInfo =
     { MinBlockSize: uint

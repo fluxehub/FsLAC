@@ -4,34 +4,32 @@ open FsLAC
 open Decoder
 open Metadata
 
-let readMagic =
+let checkMagic =
     decode {
         let! magic = readBytes 4
 
         if magic <> "fLaC"B then
-            return Error "Not a valid FLAC file"
+            return! decodeError "Not a valid FLAC file"
     }
 
 let openFile name =
     let file = File.OpenRead(name)
     new BinaryReader(file, Encoding.UTF8, false)
 
-let stream = openFile "circle.flac"
-
 let decodeFile filename =
-    let stream = openFile filename
-    let decoder = { Stream = stream; Metadata = None }
+    use reader = openFile filename
 
-    let decodeSteps =
+    // TODO: This should be disposable rather than having to create a reader first
+    let stream = Stream.create reader
+
+    let decodeFlac =
         decode {
-            do! readMagic
-            do! loadMetadata
-            let! metadata = getMetadata
-            printfn $"Metadata: {metadata}"
+            do! checkMagic
+            return! readMetadata
         }
 
-    decoder |> runDecode decodeSteps
+    stream |> run decodeFlac
 
 match decodeFile "circle.flac" with
-| Ok _, _ -> printfn "Success"
-| Error e, _ -> printfn $"Error: {e}"
+| Ok data -> printfn $"Metadata: {data}"
+| Error e -> printfn $"Error: {e}"
