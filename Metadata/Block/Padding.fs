@@ -1,10 +1,9 @@
-module FsLAC.MetadataBlocks.Padding
+module FsLAC.Metadata.Block.Padding
 
 open FsLAC
-open Decoder
 
 let readPadding (length: uint) =
     decode {
-        do! skip (int64 length)
+        do! Decoder.skip (int64 length)
         return length
     }

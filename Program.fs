@@ -1,15 +1,14 @@
 ﻿open System.IO
 open System.Text
 open FsLAC
-open Decoder
-open Metadata
+open FsLAC.Metadata
 
 let checkMagic =
     decode {
-        let! magic = readBytes 4
+        let! magic = Decoder.readBytes 4
 
         if magic <> "fLaC"B then
-            return! decodeError "Not a valid FLAC file"
+            return! Decoder.error "Not a valid FLAC file"
     }
 
 let openFile name =
@@ -25,10 +24,10 @@ let decodeFile filename =
     let decodeFlac =
         decode {
             do! checkMagic
-            return! readMetadata
+            return! MetadataDecoder.readMetadata
         }
 
-    stream |> run decodeFlac
+    stream |> Decoder.run decodeFlac
 
 match decodeFile "circle.flac" with
 | Ok data -> printfn $"Metadata: {data}"

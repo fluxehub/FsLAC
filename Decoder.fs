@@ -15,8 +15,8 @@ type Decoder<'ok, 'err> = Decoder of (Stream -> Result<'ok, 'err>)
 
 module Decoder =
     let run (Decoder(f)) stream = f stream
-    let inline decodeReturn value = Decoder(fun _ -> Ok value)
-    let inline decodeError err = Decoder(fun _ -> Error err)
+    let inline ok value = Decoder(fun _ -> Ok value)
+    let inline error err = Decoder(fun _ -> Error err)
 
     let map f (Decoder(decoder)) =
         Decoder(fun stream -> decoder stream |> Result.map f)
@@ -24,7 +24,7 @@ module Decoder =
     type DecodeBuilder() =
         member this.Zero() = Decoder(fun _ -> Ok())
 
-        member this.Return value = decodeReturn value
+        member this.Return value = ok value
 
         member inline this.ReturnFrom(d: Decoder<_, _>) = d
 
@@ -36,7 +36,7 @@ module Decoder =
                 | Ok value -> stream |> run (f value)
                 | Error err -> Error err)
 
-    let decode = DecodeBuilder()
+    let private decode = DecodeBuilder()
 
     let readByte = Decoder(fun stream -> Ok(stream.Reader.ReadByte()))
 
@@ -100,16 +100,19 @@ module Decoder =
             return Encoding.UTF8.GetString bytes
         }
 
+[<AutoOpen>]
+module DecoderCE =
+    let decode = Decoder.DecodeBuilder()
+
 module List =
     open Decoder
 
     let traverseDecoder decoder list =
         let (>>=) f x = decode.Bind(f, x)
-        let init = decodeReturn []
+        let init = ok []
 
         let folder head tail =
-            decoder head
-            >>= (fun head -> tail >>= (fun tail -> decodeReturn (head :: tail)))
+            decoder head >>= (fun head -> tail >>= (fun tail -> ok (head :: tail)))
 
         List.foldBack folder list init
 

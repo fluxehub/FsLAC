@@ -8,10 +8,12 @@
     <ItemGroup>
         <Compile Include="Types.fs" />
         <Compile Include="Decoder.fs" />
-        <Compile Include="Metadata\StreamInfo.fs" />
-        <Compile Include="Metadata\Padding.fs" />
-        <Compile Include="Metadata\SeekTable.fs" />
-        <Compile Include="Metadata\VorbisComment.fs" />
+        <Compile Include="Metadata\Block\StreamInfo.fs" />
+        <Compile Include="Metadata\Block\Padding.fs" />
+        <Compile Include="Metadata\Block\Application.fs" />
+        <Compile Include="Metadata\Block\SeekTable.fs" />
+        <Compile Include="Metadata\Block\VorbisComment.fs" />
+        <Compile Include="Metadata\Block\Unknown.fs" />
         <Compile Include="Metadata\Metadata.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>

@@ -1,13 +1,12 @@
-module FsLAC.MetadataBlocks.SeekTable
+module FsLAC.Metadata.Block.SeekTable
 
 open FsLAC
-open Decoder
 
 let readSeekPoint =
     decode {
-        let! sampleNumber = readUInt64
-        let! streamOffset = readUInt64
-        let! frameSamples = readUInt16
+        let! sampleNumber = Decoder.readUInt64
+        let! streamOffset = Decoder.readUInt64
+        let! frameSamples = Decoder.readUInt16
 
         return
             { SampleNumber = sampleNumber
@@ -22,5 +21,5 @@ let readSeekTable (length: uint) =
         return!
             List.init (int length) (fun _ -> readSeekPoint)
             |> List.sequenceDecoder
-            |> map (List.filter (fun x -> x.SampleNumber <> 0xFFFFFFFFFFFFFFFFuL))
+            |> Decoder.map (List.filter (fun x -> x.SampleNumber <> 0xFFFFFFFFFFFFFFFFuL))
     }

@@ -1,13 +1,12 @@
-module FsLAC.MetadataBlocks.VorbisComment
+module FsLAC.Metadata.Block.VorbisComment
 
 open System
 open FsLAC
-open Decoder
 
 // Used to read the Vorbis string lengths
 let private readUInt32LE =
     decode {
-        let! bytes = readBytes 4
+        let! bytes = Decoder.readBytes 4
 
         if BitConverter.IsLittleEndian then
             return BitConverter.ToUInt32(bytes, 0)
@@ -17,26 +16,26 @@ let private readUInt32LE =
 
 let parseComment (comment: string) =
     match comment.Split('=') with
-    | [| key; value |] -> decodeReturn (key, value)
-    | _ -> decodeError $"Invalid comment in Vorbis comment block: {comment}"
+    | [| key; value |] -> Decoder.ok (key, value)
+    | _ -> Decoder.error $"Invalid comment in Vorbis comment block: {comment}"
 
 let readComment =
     decode {
-        let! commentLength = readUInt32LE |> map int
-        let! comment = readString commentLength
+        let! commentLength = readUInt32LE |> Decoder.map int
+        let! comment = Decoder.readString commentLength
         return! parseComment comment
     }
 
 let readVorbisComment =
     decode {
-        let! vendorLength = readUInt32LE |> map int
-        let! vendorString = readString vendorLength
-        let! commentCount = readUInt32LE |> map int
+        let! vendorLength = readUInt32LE |> Decoder.map int
+        let! vendorString = Decoder.readString vendorLength
+        let! commentCount = readUInt32LE |> Decoder.map int
 
         let! comments =
             List.init commentCount (fun _ -> readComment)
             |> List.sequenceDecoder
-            |> map Map.ofList
+            |> Decoder.map Map.ofList
 
         return
             { Vendor = vendorString
