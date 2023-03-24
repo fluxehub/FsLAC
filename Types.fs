@@ -1,7 +1,6 @@
 [<AutoOpen>]
 module FsLAC.Types
 
-
 type StreamInfo =
     { MinBlockSize: uint
       MaxBlockSize: uint
@@ -18,9 +17,15 @@ type SeekPoint =
       StreamOffset: uint64
       FrameSamplesCount: uint }
 
+type VorbisComment =
+    { Vendor: string
+      Comments: Map<string, string> }
+
 type BlockData =
     | StreamInfo of StreamInfo
+    | Padding of uint
     | SeekTable of SeekPoint list
+    | VorbisComment of VorbisComment
 
 type MetadataBlock =
     { Data: BlockData

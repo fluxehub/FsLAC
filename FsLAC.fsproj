@@ -8,7 +8,11 @@
     <ItemGroup>
         <Compile Include="Types.fs" />
         <Compile Include="Decoder.fs" />
-        <Compile Include="Metadata.fs" />
+        <Compile Include="Metadata\StreamInfo.fs" />
+        <Compile Include="Metadata\Padding.fs" />
+        <Compile Include="Metadata\SeekTable.fs" />
+        <Compile Include="Metadata\VorbisComment.fs" />
+        <Compile Include="Metadata\Metadata.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

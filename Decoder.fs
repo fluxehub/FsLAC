@@ -2,6 +2,7 @@ namespace FsLAC
 
 open System
 open System.IO
+open System.Text
 
 type Stream =
     { Reader: BinaryReader
@@ -16,6 +17,9 @@ module Decoder =
     let run (Decoder(f)) stream = f stream
     let inline decodeReturn value = Decoder(fun _ -> Ok value)
     let inline decodeError err = Decoder(fun _ -> Error err)
+
+    let map f (Decoder(decoder)) =
+        Decoder(fun stream -> decoder stream |> Result.map f)
 
     type DecodeBuilder() =
         member this.Zero() = Decoder(fun _ -> Ok())
@@ -44,6 +48,16 @@ module Decoder =
                 Ok bytes
             else
                 Error "Could not read enough bytes")
+
+    let skip bytesToSkip =
+        Decoder(fun stream ->
+            ignore (stream.Reader.BaseStream.Seek(bytesToSkip, SeekOrigin.Current))
+            Ok())
+
+    let seek position =
+        Decoder(fun stream ->
+            ignore (stream.Reader.BaseStream.Seek(position, SeekOrigin.Begin))
+            Ok())
 
     let private readBigEndian bytesToRead =
         decode {
@@ -79,3 +93,24 @@ module Decoder =
     let readUInt32 = readInt sizeof<uint32> BitConverter.ToUInt32
 
     let readUInt64 = readInt sizeof<uint64> BitConverter.ToUInt64
+
+    let readString length =
+        decode {
+            let! bytes = readBytes length
+            return Encoding.UTF8.GetString bytes
+        }
+
+module List =
+    open Decoder
+
+    let traverseDecoder decoder list =
+        let (>>=) f x = decode.Bind(f, x)
+        let init = decodeReturn []
+
+        let folder head tail =
+            decoder head
+            >>= (fun head -> tail >>= (fun tail -> decodeReturn (head :: tail)))
+
+        List.foldBack folder list init
+
+    let sequenceDecoder list = traverseDecoder id list
