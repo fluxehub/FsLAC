@@ -6,6 +6,7 @@ open Block.Padding
 open Block.Application
 open Block.SeekTable
 open Block.VorbisComment
+open Block.Picture
 open Block.Unknown
 
 let readMetadataBlock =
@@ -24,6 +25,7 @@ let readMetadataBlock =
             | 2uy -> readApplication length |> Decoder.map Application
             | 3uy -> readSeekTable length |> Decoder.map SeekTable
             | 4uy -> readVorbisComment |> Decoder.map VorbisComment
+            | 6uy -> readPicture |> Decoder.map Picture
             | 127uy -> Decoder.error "Invalid metadata block type found (127)"
             | t -> readUnknown t length |> Decoder.map Unknown
 

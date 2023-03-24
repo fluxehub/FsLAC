@@ -23,6 +23,39 @@ type VorbisComment =
     { Vendor: string
       Comments: Map<string, string> }
 
+type PictureType =
+    | Other
+    | FileIcon
+    | OtherFileIcon
+    | FrontCover
+    | BackCover
+    | LeafletPage
+    | Media
+    | LeadArtist
+    | Artist
+    | Conductor
+    | Band
+    | Composer
+    | Lyricist
+    | RecordingLocation
+    | DuringRecording
+    | DuringPerformance
+    | MovieScreenCapture
+    | ColouredFish
+    | Illustration
+    | BandLogo
+    | PublisherLogo
+
+type Picture =
+    { Type: PictureType
+      MimeType: string
+      Description: string
+      Width: uint
+      Height: uint
+      ColorDepth: uint
+      ColorCount: uint
+      Data: byte[] }
+
 type UnknownBlock = { Type: byte; Data: byte[] }
 
 type BlockData =
@@ -31,6 +64,7 @@ type BlockData =
     | Application of Application
     | SeekTable of SeekPoint list
     | VorbisComment of VorbisComment
+    | Picture of Picture
     | Unknown of UnknownBlock
 
 type MetadataBlock =

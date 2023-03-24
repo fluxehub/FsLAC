@@ -13,6 +13,7 @@
         <Compile Include="Metadata\Block\Application.fs" />
         <Compile Include="Metadata\Block\SeekTable.fs" />
         <Compile Include="Metadata\Block\VorbisComment.fs" />
+        <Compile Include="Metadata\Block\Picture.fs" />
         <Compile Include="Metadata\Block\Unknown.fs" />
         <Compile Include="Metadata\Metadata.fs" />
         <Compile Include="Program.fs" />
