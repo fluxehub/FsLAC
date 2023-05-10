@@ -1,17 +1,39 @@
 namespace FsLAC
 
-open System
 open System.IO
 open System.Text
+open Microsoft.FSharp.Core
 
-type Stream =
-    { Reader: BinaryReader
-      Metadata: Metadata option }
+// TODO: IDisposable
+type BitStream(reader: BinaryReader) =
+    let mutable bitBuffer = 0UL
+    let mutable bitCount = 0
 
-module Stream =
-    let create reader = { Reader = reader; Metadata = None }
+    // Based off https://fgiesen.wordpress.com/2018/02/20/reading-bits-in-far-too-many-ways-part-2/
+    member _.ReadBits(count) =
+        assert (count >= 1 && count <= 57)
 
-type Decoder<'ok, 'err> = Decoder of (Stream -> Result<'ok, 'err>)
+        while bitCount < count do
+            let byte: uint64 = reader.ReadByte() |> uint64
+            bitBuffer <- bitBuffer ||| (byte <<< (56 - bitCount))
+            bitCount <- bitCount + 8
+
+        let result = bitBuffer >>> (64 - count)
+        bitBuffer <- bitBuffer <<< count
+        bitCount <- bitCount - count
+        result
+
+    member _.Skip(byteCount: uint) =
+        // Skips only happen on byte boundaries, so we can just reset the bit buffer
+        assert (bitCount % 8 = 0)
+        let bytesToSkip = byteCount - (uint (bitCount / 8))
+        reader.BaseStream.Seek(int64 bytesToSkip, SeekOrigin.Current) |> ignore
+
+        bitBuffer <- 0UL
+        bitCount <- 0
+
+
+type Decoder<'ok, 'err> = Decoder of (BitStream -> Result<'ok, 'err>)
 
 module Decoder =
     let run (Decoder(f)) stream = f stream
@@ -38,61 +60,55 @@ module Decoder =
 
     let private decode = DecodeBuilder()
 
-    let readByte = Decoder(fun stream -> Ok(stream.Reader.ReadByte()))
-
-    let readBytes bytesToRead =
+    let readByte =
         Decoder(fun stream ->
-            let bytes = stream.Reader.ReadBytes(bytesToRead)
+            try
+                Ok(stream.ReadBits(8) |> byte)
+            with :? EndOfStreamException ->
+                Error "End of stream reached")
 
-            if bytes.Length = bytesToRead then
-                Ok bytes
-            else
-                Error "Could not read enough bytes")
+    let readBytes (count: int) =
+        Decoder(fun stream ->
+            try
+                Ok(Array.init count (fun _ -> stream.ReadBits(8) |> byte))
+            with :? EndOfStreamException ->
+                Error "End of stream reached")
+
+    let readBits count =
+        Decoder(fun stream ->
+            try
+                Ok(stream.ReadBits(count))
+            with :? EndOfStreamException ->
+                Error "End of stream reached")
 
     let skip bytesToSkip =
         Decoder(fun stream ->
-            ignore (stream.Reader.BaseStream.Seek(bytesToSkip, SeekOrigin.Current))
+            stream.Skip(bytesToSkip)
             Ok())
 
-    let seek position =
-        Decoder(fun stream ->
-            ignore (stream.Reader.BaseStream.Seek(position, SeekOrigin.Begin))
-            Ok())
-
-    let private readBigEndian bytesToRead =
-        decode {
-            let! bytes = readBytes bytesToRead
-
-            if BitConverter.IsLittleEndian then
-                return Array.rev bytes
-            else
-                return bytes
-        }
+    // let seek position =
+    //     Decoder(fun stream ->
+    //         ignore (stream.Reader.BaseStream.Seek(position, SeekOrigin.Begin))
+    //         Ok())
 
     let private readInt size converter =
         decode {
-            let! bytes = readBigEndian size
+            let! bytes = readBits size
             return converter bytes
         }
 
-    let readUInt16 = readInt sizeof<uint16> BitConverter.ToUInt16
+    let readUInt16 = readInt 16 uint16
 
-    let readUInt24 =
+    let readUInt24 = readInt 24 uint32
+
+    let readUInt32 = readInt 32 uint32
+
+    let readUInt64 =
         decode {
-            let! readBytes = readBigEndian 3
-
-            let bytes =
-                if BitConverter.IsLittleEndian then
-                    [| 0uy |] |> Array.append readBytes
-                else
-                    readBytes |> Array.append [| 0uy |]
-
-            return BitConverter.ToUInt32 bytes
+            let! high = readUInt32
+            let! low = readUInt32
+            return (uint64 high <<< 32) ||| uint64 low
         }
-
-    let readUInt32 = readInt sizeof<uint32> BitConverter.ToUInt32
-
-    let readUInt64 = readInt sizeof<uint64> BitConverter.ToUInt64
 
     let readString length =
         decode {
