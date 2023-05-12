@@ -1,7 +1,9 @@
 ﻿open System
 open System.IO
+open System.Threading.Tasks
 open FsLAC
 open FsLAC.Metadata
+open FsLAC.Player
 
 let checkMagic =
     decode {
@@ -48,9 +50,29 @@ let decodeFile filename =
             printfn $"Padding: {pad}"
             printfn $"Subframe type: {Convert.ToString(int subframeType, 2)}"
             printfn $"Wasted: {wasted}"
+            return metadata
         }
 
     stream |> Decoder.run decodeFlac
+
+let callback (waveBuffer: byte array) requestedBytes pos =
+    let startPos = pos * requestedBytes
+    let endPos = startPos + requestedBytes
+    waveBuffer[startPos .. endPos - 1], pos + 1
+
+let format =
+    { SampleRate = 44100.0
+      Channels = 2u
+      BitDepth = 16u }
+
+let player =
+    new Player<int>(format, 2048u, callback (WaveFile.getWaveBytes "circle.wav"), 0)
+
+printfn "Playing..."
+player.Start()
+Task.Delay(60 * 1000).Wait()
+printfn "Stopping..."
+player.Stop()
 
 match decodeFile "circle.flac" with
 | Ok data -> printfn $"Metadata: {data}"

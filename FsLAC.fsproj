@@ -7,6 +7,8 @@
 
     <ItemGroup>
         <Compile Include="Types.fs" />
+        <Compile Include="WaveFile.fs" />
+        <Compile Include="Player.fs" />
         <Compile Include="Decoder.fs" />
         <Compile Include="Metadata\Block\StreamInfo.fs" />
         <Compile Include="Metadata\Block\Padding.fs" />
