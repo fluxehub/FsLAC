@@ -6,19 +6,21 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <Compile Include="Types.fs" />
-        <Compile Include="WaveFile.fs" />
-        <Compile Include="Player.fs" />
-        <Compile Include="Decoder.fs" />
-        <Compile Include="Metadata\Block\StreamInfo.fs" />
-        <Compile Include="Metadata\Block\Padding.fs" />
-        <Compile Include="Metadata\Block\Application.fs" />
-        <Compile Include="Metadata\Block\SeekTable.fs" />
-        <Compile Include="Metadata\Block\VorbisComment.fs" />
-        <Compile Include="Metadata\Block\Picture.fs" />
-        <Compile Include="Metadata\Block\Unknown.fs" />
-        <Compile Include="Metadata\Metadata.fs" />
-        <Compile Include="Program.fs" />
+        <Compile Include="src\Types.fs" />
+        <Compile Include="src\WaveFile.fs" />
+        <Compile Include="src\Player.fs" />
+        <Compile Include="src\Decoder.fs" />
+        <Compile Include="src\Metadata\Block\StreamInfo.fs" />
+        <Compile Include="src\Metadata\Block\Padding.fs" />
+        <Compile Include="src\Metadata\Block\Application.fs" />
+        <Compile Include="src\Metadata\Block\SeekTable.fs" />
+        <Compile Include="src\Metadata\Block\VorbisComment.fs" />
+        <Compile Include="src\Metadata\Block\Picture.fs" />
+        <Compile Include="src\Metadata\Block\Unknown.fs" />
+        <Compile Include="src\Metadata\Metadata.fs" />
+        <Compile Include="src\Program.fs" />
+        <Content Include="README.md" />
+        <Content Include="LICENSE" />
     </ItemGroup>
 
 </Project>
