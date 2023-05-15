@@ -66,7 +66,6 @@ let private checkError method error =
     if error <> 0 then
         failwith $"{error} in {method}"
 
-
 type private Buffer = Buffer of nativeint
 
 module private Buffer =

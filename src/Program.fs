@@ -70,7 +70,7 @@ let player =
 
 printfn "Playing..."
 player.Start()
-Task.Delay(60 * 1000).Wait()
+Task.Delay((3 * 60 + 53) * 1000).Wait()
 printfn "Stopping..."
 player.Stop()
 
