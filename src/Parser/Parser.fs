@@ -1,6 +1,7 @@
-namespace FsLAC
+namespace FsLAC.Parser
 
 open System.IO
+open System.Numerics
 open System.Text
 open Microsoft.FSharp.Core
 
@@ -10,15 +11,18 @@ type BitStream(reader: BinaryReader) =
     let mutable bitCount = 0
 
     // Based off https://fgiesen.wordpress.com/2018/02/20/reading-bits-in-far-too-many-ways-part-2/
-    member _.ReadBits(count) =
+    member _.Peek(count) =
         assert (count >= 1 && count <= 57)
 
         while bitCount < count do
             let byte: uint64 = reader.ReadByte() |> uint64
             bitBuffer <- bitBuffer ||| (byte <<< (56 - bitCount))
             bitCount <- bitCount + 8
-
-        let result = bitBuffer >>> (64 - count)
+        
+        bitBuffer >>> (64 - count)
+    
+    member this.ReadBits(count) =
+        let result = this.Peek(count)
         bitBuffer <- bitBuffer <<< count
         bitCount <- bitCount - count
         result
@@ -31,59 +35,76 @@ type BitStream(reader: BinaryReader) =
 
         bitBuffer <- 0UL
         bitCount <- 0
+        
+    member this.SkipToAlignment() =
+        if bitCount % 8 <> 0 then
+            this.ReadBits(8 - (bitCount % 8)) |> ignore
 
+type Parser<'ok, 'err> = Parser of (BitStream -> Result<'ok, 'err>)
 
-type Decoder<'ok, 'err> = Decoder of (BitStream -> Result<'ok, 'err>)
+module Parser =
+    let run (Parser(f)) stream = f stream
+    let inline ok value = Parser(fun _ -> Ok value)
+    let inline error err = Parser(fun _ -> Error err)
 
-module Decoder =
-    let run (Decoder(f)) stream = f stream
-    let inline ok value = Decoder(fun _ -> Ok value)
-    let inline error err = Decoder(fun _ -> Error err)
+    let map f (Parser(decoder)) =
+        Parser(fun stream -> decoder stream |> Result.map f)
 
-    let map f (Decoder(decoder)) =
-        Decoder(fun stream -> decoder stream |> Result.map f)
-
-    type DecodeBuilder() =
-        member this.Zero() = Decoder(fun _ -> Ok())
+    type ParserBuilder() =
+        member this.Zero() = Parser(fun _ -> Ok())
 
         member this.Return value = ok value
 
-        member inline this.ReturnFrom(d: Decoder<_, _>) = d
+        member inline this.ReturnFrom(d: Parser<_, _>) = d
 
-        member this.Bind(decoder: Decoder<'a, _>, f: 'a -> Decoder<'b, _>) : Decoder<'b, 'err> =
-            Decoder(fun stream ->
+        member this.Bind(decoder: Parser<'a, _>, f: 'a -> Parser<'b, _>) : Parser<'b, 'err> =
+            Parser(fun stream ->
                 let result = stream |> run decoder
 
                 match result with
                 | Ok value -> stream |> run (f value)
                 | Error err -> Error err)
 
-    let private decode = DecodeBuilder()
+    let private parse = ParserBuilder()
 
     let readByte =
-        Decoder(fun stream ->
+        Parser(fun stream ->
             try
                 Ok(stream.ReadBits(8) |> byte)
             with :? EndOfStreamException ->
                 Error "End of stream reached")
 
     let readBytes (count: int) =
-        Decoder(fun stream ->
+        Parser(fun stream ->
             try
                 Ok(Array.init count (fun _ -> stream.ReadBits(8) |> byte))
             with :? EndOfStreamException ->
                 Error "End of stream reached")
 
     let readBits count =
-        Decoder(fun stream ->
+        Parser(fun stream ->
             try
                 Ok(stream.ReadBits(count))
             with :? EndOfStreamException ->
                 Error "End of stream reached")
-
+    
+    let readBitsSigned count =
+        parse {
+            let! bits = readBits count
+            if bits >>> (count - 1) = 0UL then
+                return int64 bits
+            else
+                return int64 (bits ||| (0xFFFFFFFFFFFFFFFFUL <<< count))
+        }
+    
     let skip bytesToSkip =
-        Decoder(fun stream ->
+        Parser(fun stream ->
             stream.Skip(bytesToSkip)
+            Ok())
+        
+    let skipToAlignment =
+        Parser(fun stream ->
+            stream.SkipToAlignment()
             Ok())
 
     // let seek position =
@@ -92,7 +113,7 @@ module Decoder =
     //         Ok())
 
     let private readInt size converter =
-        decode {
+        parse {
             let! bytes = readBits size
             return converter bytes
         }
@@ -104,27 +125,34 @@ module Decoder =
     let readUInt32 = readInt 32 uint32
 
     let readUInt64 =
-        decode {
+        parse {
             let! high = readUInt32
             let! low = readUInt32
             return (uint64 high <<< 32) ||| uint64 low
         }
+    
+    let readUnary =
+        Parser(fun stream ->
+            let window = stream.Peek(32)
+            let value = (BitOperations.LeadingZeroCount window) - 32 // Subtract 32 because window is a uint64
+            stream.ReadBits(value + 1) |> ignore
+            Ok(uint value))
 
     let readString length =
-        decode {
+        parse {
             let! bytes = readBytes length
             return Encoding.UTF8.GetString bytes
         }
 
 [<AutoOpen>]
-module DecoderCE =
-    let decode = Decoder.DecodeBuilder()
+module ParseCE =
+    let parse = Parser.ParserBuilder()
 
 module List =
-    open Decoder
+    open Parser
 
-    let traverseDecoder decoder list =
-        let (>>=) f x = decode.Bind(f, x)
+    let traverseParser decoder list =
+        let (>>=) f x = parse.Bind(f, x)
         let init = ok []
 
         let folder head tail =
@@ -132,4 +160,4 @@ module List =
 
         List.foldBack folder list init
 
-    let sequenceDecoder list = traverseDecoder id list
+    let sequenceParser list = traverseParser id list

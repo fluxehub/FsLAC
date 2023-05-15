@@ -1,10 +1,11 @@
-module FsLAC.Metadata.Block.Picture
+module FsLAC.Parser.Metadata.Blocks.Picture
 
-open FsLAC
+open FsLAC.Parser
+open FsLAC.Types.Metadata
 
-let private readPictureType =
-    decode {
-        let! pictureType = Decoder.readUInt32
+let private parsePictureType =
+    parse {
+        let! pictureType = Parser.readUInt32
 
         match pictureType with
         | 0u -> return PictureType.Other
@@ -28,22 +29,22 @@ let private readPictureType =
         | 18u -> return PictureType.Illustration
         | 19u -> return PictureType.BandLogo
         | 20u -> return PictureType.PublisherLogo
-        | t -> return! Decoder.error $"Unknown picture type ({t})"
+        | t -> return! Parser.error $"Unknown picture type ({t})"
     }
 
-let readPicture =
-    decode {
-        let! pictureType = readPictureType
-        let! mimeLength = Decoder.readUInt32 |> Decoder.map int
-        let! mimeType = Decoder.readString mimeLength
-        let! descriptionLength = Decoder.readUInt32 |> Decoder.map int
-        let! description = Decoder.readString descriptionLength
-        let! width = Decoder.readUInt32
-        let! height = Decoder.readUInt32
-        let! colorDepth = Decoder.readUInt32
-        let! colorCount = Decoder.readUInt32
-        let! pictureLength = Decoder.readUInt32 |> Decoder.map int
-        let! picture = Decoder.readBytes pictureLength
+let parsePicture =
+    parse {
+        let! pictureType = parsePictureType
+        let! mimeLength = Parser.readUInt32 |> Parser.map int
+        let! mimeType = Parser.readString mimeLength
+        let! descriptionLength = Parser.readUInt32 |> Parser.map int
+        let! description = Parser.readString descriptionLength
+        let! width = Parser.readUInt32
+        let! height = Parser.readUInt32
+        let! colorDepth = Parser.readUInt32
+        let! colorCount = Parser.readUInt32
+        let! pictureLength = Parser.readUInt32 |> Parser.map int
+        let! picture = Parser.readBytes pictureLength
 
         return
             { Type = pictureType

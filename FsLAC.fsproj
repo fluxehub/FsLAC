@@ -6,18 +6,23 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <Compile Include="src\Types.fs" />
         <Compile Include="src\WaveFile.fs" />
         <Compile Include="src\Player.fs" />
-        <Compile Include="src\Decoder.fs" />
-        <Compile Include="src\Metadata\Block\StreamInfo.fs" />
-        <Compile Include="src\Metadata\Block\Padding.fs" />
-        <Compile Include="src\Metadata\Block\Application.fs" />
-        <Compile Include="src\Metadata\Block\SeekTable.fs" />
-        <Compile Include="src\Metadata\Block\VorbisComment.fs" />
-        <Compile Include="src\Metadata\Block\Picture.fs" />
-        <Compile Include="src\Metadata\Block\Unknown.fs" />
-        <Compile Include="src\Metadata\Metadata.fs" />
+        <Compile Include="src\Types\Metadata.fs" />
+        <Compile Include="src\Types\Frame.fs" />
+        <Compile Include="src\Parser\Parser.fs" />
+        <Compile Include="src\Parser\Metadata\Blocks\StreamInfo.fs" />
+        <Compile Include="src\Parser\Metadata\Blocks\Padding.fs" />
+        <Compile Include="src\Parser\Metadata\Blocks\Application.fs" />
+        <Compile Include="src\Parser\Metadata\Blocks\SeekTable.fs" />
+        <Compile Include="src\Parser\Metadata\Blocks\VorbisComment.fs" />
+        <Compile Include="src\Parser\Metadata\Blocks\Picture.fs" />
+        <Compile Include="src\Parser\Metadata\Blocks\Unknown.fs" />
+        <Compile Include="src\Parser\Metadata\MetadataParser.fs" />
+        <Compile Include="src\Parser\Frame\Common.fs" />
+        <Compile Include="src\Parser\Frame\Subframes.fs" />
+        <Compile Include="src\Parser\Frame\Metadata.fs" />
+        <Compile Include="src\Parser\Frame\FrameParser.fs" />
         <Compile Include="src\Program.fs" />
         <Content Include="README.md" />
         <Content Include="LICENSE" />

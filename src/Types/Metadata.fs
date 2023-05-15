@@ -1,5 +1,5 @@
 [<AutoOpen>]
-module FsLAC.Types
+module FsLAC.Types.Metadata
 
 type StreamInfo =
     { MinBlockSize: uint
@@ -8,7 +8,7 @@ type StreamInfo =
       MaxFrameSize: uint
       SampleRate: uint
       Channels: uint
-      BitsPerSample: uint
+      BitDepth: uint
       TotalSamples: uint64
       AudioMD5: byte[] }
 

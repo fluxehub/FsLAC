@@ -1,16 +1,17 @@
-﻿open System
-open System.IO
-open System.Threading.Tasks
+﻿open System.IO
 open FsLAC
-open FsLAC.Metadata
+open FsLAC.Frame
+open FsLAC.Parser
+open FsLAC.Parser.Metadata
 open FsLAC.Player
+open FsLAC.Types
 
 let checkMagic =
-    decode {
-        let! magic = Decoder.readBytes 4
+    parse {
+        let! magic = Parser.readBytes 4
 
         if magic <> "fLaC"B then
-            return! Decoder.error "Not a valid FLAC file"
+            return! Parser.error "Not a valid FLAC file"
     }
 
 let openFile name =
@@ -21,39 +22,14 @@ let decodeFile filename =
     let stream = openFile filename
 
     let decodeFlac =
-        decode {
+        parse {
             do! checkMagic
-            let! metadata = MetadataDecoder.readMetadata
-            let! sync = Decoder.readBits 14
-            let! resv = Decoder.readBits 1
-            let! block = Decoder.readBits 1
-            let! blockSize = Decoder.readBits 4
-            let! sr = Decoder.readBits 4
-            let! ch = Decoder.readBits 4
-            let! sample = Decoder.readBits 3
-            let! resv2 = Decoder.readBits 1
-            let! utf8_first = Decoder.readByte
-            let! crc = Decoder.readByte
-            let! pad = Decoder.readBits 1
-            let! subframeType = Decoder.readBits 6
-            let! wasted = Decoder.readBits 1
-            printfn $"Sync: {Convert.ToString(int sync, 2)}"
-            printfn $"Reserved: {resv}"
-            printfn $"Block: {Convert.ToString(int block, 2)}"
-            printfn $"Block size: {Convert.ToString(int blockSize, 2)}"
-            printfn $"Sample rate: {Convert.ToString(int sr, 2)}"
-            printfn $"Channels: {Convert.ToString(int ch, 2)}"
-            printfn $"Sample size: {Convert.ToString(int sample, 2)}"
-            printfn $"Reserved: {resv2}"
-            printfn $"UTF8 first: {utf8_first}"
-            printfn $"CRC: {crc}"
-            printfn $"Padding: {pad}"
-            printfn $"Subframe type: {Convert.ToString(int subframeType, 2)}"
-            printfn $"Wasted: {wasted}"
-            return metadata
+            let! metadata = MetadataParser.parseMetadata
+            let! frameHeader = FrameParser.parseFrame metadata.StreamInfo
+            return frameHeader
         }
 
-    stream |> Decoder.run decodeFlac
+    stream |> Parser.run decodeFlac
 
 let callback (waveBuffer: byte array) requestedBytes pos =
     let startPos = pos * requestedBytes
@@ -68,11 +44,11 @@ let format =
 let player =
     new Player<int>(format, 2048u, callback (WaveFile.getWaveBytes "circle.wav"), 0)
 
-printfn "Playing..."
-player.Start()
-Task.Delay((3 * 60 + 53) * 1000).Wait()
-printfn "Stopping..."
-player.Stop()
+// printfn "Playing..."
+// player.Start()
+// // Task.Delay((3 * 60 + 53) * 1000).Wait()
+// printfn "Stopping..."
+// player.Stop()
 
 match decodeFile "circle.flac" with
 | Ok data -> printfn $"Metadata: {data}"

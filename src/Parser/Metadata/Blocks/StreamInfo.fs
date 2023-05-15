@@ -1,21 +1,23 @@
-module FsLAC.Metadata.Block.StreamInfo
+module FsLAC.Parser.Metadata.Blocks.StreamInfo
 
-open FsLAC
+open FsLAC.Parser
+open FsLAC.Types.Metadata
 
-let readStreamInfo =
-    decode {
-        let! minBlockSize = Decoder.readUInt16
-        let! maxBlockSize = Decoder.readUInt16
-        let! minFrameSize = Decoder.readUInt24
-        let! maxFrameSize = Decoder.readUInt24
+let parseStreamInfo =
+    parse {
+        let! minBlockSize = Parser.readUInt16
+        let! maxBlockSize = Parser.readUInt16
+        let! minFrameSize = Parser.readUInt24
+        let! maxFrameSize = Parser.readUInt24
 
-        let! samplesDescChunk = Decoder.readUInt64
+        let! samplesDescChunk = Parser.readUInt64
 
         // Format of chunk is:
         // 20 bits for sample rate
         // 3 bits for channels (-1)
         // 5 bits for bits per sample (-1)
         // 36 bits for total samples
+        // TODO: Use the new bitstream class
         let sampleRate = (samplesDescChunk &&& 0xFFFFF00000000000uL) >>> 44 |> uint
 
         let channels =
@@ -26,7 +28,7 @@ let readStreamInfo =
 
         let totalSamples = (samplesDescChunk &&& 0x0000000FFFFFFFFFuL) |> uint64
 
-        let! audioMD5 = Decoder.readBytes 16
+        let! audioMD5 = Parser.readBytes 16
 
         return
             { MinBlockSize = uint minBlockSize
@@ -35,7 +37,7 @@ let readStreamInfo =
               MaxFrameSize = maxFrameSize
               SampleRate = sampleRate
               Channels = channels
-              BitsPerSample = bitsPerSample
+              BitDepth = bitsPerSample
               TotalSamples = totalSamples
               AudioMD5 = audioMD5 }
     }
