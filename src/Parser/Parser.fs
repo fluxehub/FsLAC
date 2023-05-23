@@ -1,7 +1,6 @@
 namespace FsLAC.Parser
 
 open System.IO
-open System.Numerics
 open System.Text
 open Microsoft.FSharp.Core
 
@@ -11,18 +10,15 @@ type BitStream(reader: BinaryReader) =
     let mutable bitCount = 0
 
     // Based off https://fgiesen.wordpress.com/2018/02/20/reading-bits-in-far-too-many-ways-part-2/
-    member _.Peek(count) =
+    member this.ReadBits(count) =
         assert (count >= 1 && count <= 57)
 
         while bitCount < count do
             let byte: uint64 = reader.ReadByte() |> uint64
             bitBuffer <- bitBuffer ||| (byte <<< (56 - bitCount))
             bitCount <- bitCount + 8
-        
-        bitBuffer >>> (64 - count)
-    
-    member this.ReadBits(count) =
-        let result = this.Peek(count)
+
+        let result = bitBuffer >>> (64 - count)
         bitBuffer <- bitBuffer <<< count
         bitCount <- bitCount - count
         result
@@ -35,7 +31,7 @@ type BitStream(reader: BinaryReader) =
 
         bitBuffer <- 0UL
         bitCount <- 0
-        
+
     member this.SkipToAlignment() =
         if bitCount % 8 <> 0 then
             this.ReadBits(8 - (bitCount % 8)) |> ignore
@@ -87,21 +83,22 @@ module Parser =
                 Ok(stream.ReadBits(count))
             with :? EndOfStreamException ->
                 Error "End of stream reached")
-    
+
     let readBitsSigned count =
         parse {
             let! bits = readBits count
+
             if bits >>> (count - 1) = 0UL then
                 return int64 bits
             else
                 return int64 (bits ||| (0xFFFFFFFFFFFFFFFFUL <<< count))
         }
-    
+
     let skip bytesToSkip =
         Parser(fun stream ->
             stream.Skip(bytesToSkip)
             Ok())
-        
+
     let skipToAlignment =
         Parser(fun stream ->
             stream.SkipToAlignment()
@@ -130,13 +127,18 @@ module Parser =
             let! low = readUInt32
             return (uint64 high <<< 32) ||| uint64 low
         }
-    
+
+    // Let it be known that I had a better system for this using CPU intrinsics,
+    // but reaching the end of the stream made it a lot harder to implement
     let readUnary =
-        Parser(fun stream ->
-            let window = stream.Peek(32)
-            let value = (BitOperations.LeadingZeroCount window) - 32 // Subtract 32 because window is a uint64
-            stream.ReadBits(value + 1) |> ignore
-            Ok(uint value))
+        let rec loop count =
+            parse {
+                let! bit = readBits 1
+
+                if bit = 1UL then return count else return! loop (count + 1)
+            }
+
+        loop 0 |> map uint
 
     let readString length =
         parse {

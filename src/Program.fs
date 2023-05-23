@@ -25,8 +25,7 @@ let decodeFile filename =
         parse {
             do! checkMagic
             let! metadata = MetadataParser.parseMetadata
-            let! frameHeader = FrameParser.parseFrame metadata.StreamInfo
-            return frameHeader
+            return! FrameParser.parseFrame metadata.StreamInfo
         }
 
     stream |> Parser.run decodeFlac
@@ -51,5 +50,5 @@ let player =
 // player.Stop()
 
 match decodeFile "circle.flac" with
-| Ok data -> printfn $"Metadata: {data}"
+| Ok data -> printfn $"Frame: {data}"
 | Error e -> printfn $"Error: {e}"
