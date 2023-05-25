@@ -7,9 +7,15 @@ let getWaveBytes fileName =
     // Open the file
     let file = File.OpenRead(fileName)
     use reader = new BinaryReader(file)
-    let mutable samples = Array.zeroCreate <| int file.Length
+    reader.BaseStream.Seek(64L, SeekOrigin.Begin) |> ignore
 
-    for i in 0 .. (int file.Length) - 1 do
-        samples[i] <- reader.ReadByte()
+    // Read the samples
+    let rec loop left right position =
+        if position >= 5000000L then
+            [ List.rev left; List.rev right ]
+        else
+            let leftSample = reader.ReadInt16() |> int
+            let rightSample = reader.ReadInt16() |> int
+            loop (leftSample :: left) (rightSample :: right) (position + 1L)
 
-    samples
+    loop [] [] 0L

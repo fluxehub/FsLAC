@@ -1,9 +1,11 @@
 ﻿open System.IO
+open System.Threading.Tasks
 open FsLAC
 open FsLAC.Decoder
 open FsLAC.Frame
 open FsLAC.Parser
 open FsLAC.Parser.Metadata
+open FsLAC.Player
 open FsLAC.Types
 
 let checkMagic =
@@ -38,24 +40,25 @@ let decodeFile filename =
     stream |> Parser.run decodeFlac
 
 
-// let callback (waveBuffer: byte array) requestedBytes pos =
-//     let startPos = pos * requestedBytes
-//     let endPos = startPos + requestedBytes
-//     waveBuffer[startPos .. endPos - 1], pos + 1
-//
-// let format =
-//     { SampleRate = 44100.0
-//       Channels = 2u
-//       BitDepth = 16u }
-//
-// let player =
-//     new Player<int>(format, 2048u, callback (WaveFile.getWaveBytes "circle.wav"), 0)
-//
-// printfn "Playing..."
-// player.Start()
-// Task.Delay((3 * 60 + 53) * 1000).Wait()
-// printfn "Stopping..."
-// player.Stop()
+let callback requestedSamples (left, right) =
+    let leftSamples, leftTail = List.splitAt requestedSamples left
+    let rightSamples, rightTail = List.splitAt requestedSamples right
+    [ leftSamples; rightSamples ], (leftTail, rightTail)
+
+let format =
+    { SampleRate = 44100.0
+      Channels = 2u
+      BitDepth = 16u }
+
+let [ left; right ] = WaveFile.getWaveBytes "circle.wav"
+
+let player = new Player<int list * int list>(format, 2048u, callback, (left, right))
+
+printfn "Playing..."
+player.Start()
+Task.Delay((3 * 60 + 53) * 1000).Wait()
+printfn "Stopping..."
+player.Stop()
 
 match decodeFile "circle.flac" with
 | Ok data -> printfn $"Frame: %A{data}"

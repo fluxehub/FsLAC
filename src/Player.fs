@@ -104,7 +104,6 @@ type Format =
       Channels: uint32
       BitDepth: uint32 }
 
-
 // We need to keep the callback around so it doesn't get garbage collected
 type private Queue = Queue of nativeint * AudioQueueOutputCallback
 type private QueueCallback = Buffer -> unit
@@ -159,18 +158,40 @@ type private PlayerMessage =
     | FillBuffer of Buffer
     | Stop of AsyncReplyChannel<unit>
 
-type PlayerCallback<'State> = int -> 'State -> byte array * 'State
+type PlayerCallback<'State> = int -> 'State -> int32 list list * 'State
 
 type Player<'State>(format: Format, bufferSize: uint32, callback: PlayerCallback<'State>, state: 'State) =
-    let bufferByteSize = (bufferSize * format.Channels) * format.BitDepth / 8u
+    let bufferByteSize = bufferSize * format.Channels * (format.BitDepth / 8u)
+    let bufferSize = int bufferSize
     let mutable disposed = false
+
+    let samplesToByteArray (samples: int32 list) =
+        let bytesPerSample = int format.BitDepth / 8
+
+        let toByteArray (sample: int32) =
+            let bytes = BitConverter.GetBytes(sample)
+
+            if BitConverter.IsLittleEndian then
+                bytes[0 .. bytesPerSample - 1]
+            else
+                bytes[bytesPerSample..]
+
+        // I have no clue why this type annotation is needed
+        List.map toByteArray samples |> Seq.concat |> Seq.toArray
+
+    let interleaveSamples (channels: int32 list list) =
+        match channels with
+        | [ mono ] -> mono
+        | [ left; right ] -> List.map2 (fun left right -> [ left; right ]) left right |> List.concat
+        | _ -> failwith $"Unsupported number of channels: {List.length channels}"
 
     let fillBuffer state queue buffer =
         // Get the new audio data (and new state)
-        let audio, newState = callback (int bufferByteSize) state
+        let audio, newState = callback bufferSize state
+        let bytes = audio |> interleaveSamples |> samplesToByteArray
 
         // Copy the data into the buffer
-        Buffer.copyData audio buffer
+        Buffer.copyData bytes buffer
 
         // Enqueue the buffer
         Queue.enqueue queue buffer
