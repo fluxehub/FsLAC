@@ -2,6 +2,7 @@ namespace FsLAC.Parser
 
 open System.IO
 open System.Text
+open FsLAC
 open Microsoft.FSharp.Core
 
 // TODO: IDisposable
@@ -87,11 +88,7 @@ module Parser =
     let readBitsSigned count =
         parse {
             let! bits = readBits count
-
-            if bits >>> (count - 1) = 0UL then
-                return int64 bits
-            else
-                return int64 (bits ||| (0xFFFFFFFFFFFFFFFFUL <<< count))
+            return Utility.signExtend (int64 bits) count
         }
 
     let skip bytesToSkip =

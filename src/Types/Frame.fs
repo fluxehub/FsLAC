@@ -24,7 +24,6 @@ type FrameHeader =
 module Subframe =
     type RiceCode = { Quotient: uint; Remainder: uint }
 
-
     type RicePartition =
         { Parameter: uint
           Codes: RiceCode list }

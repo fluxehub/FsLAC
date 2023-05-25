@@ -1,9 +1,9 @@
 ﻿open System.IO
 open FsLAC
+open FsLAC.Decoder
 open FsLAC.Frame
 open FsLAC.Parser
 open FsLAC.Parser.Metadata
-open FsLAC.Player
 open FsLAC.Types
 
 let checkMagic =
@@ -21,34 +21,42 @@ let openFile name =
 let decodeFile filename =
     let stream = openFile filename
 
+    let decodeFrame metadata =
+        parse {
+            return!
+                FrameParser.parseFrame metadata.StreamInfo
+                |> Parser.map (Decoder.decodeFrame true)
+        }
+
     let decodeFlac =
         parse {
             do! checkMagic
             let! metadata = MetadataParser.parseMetadata
-            return! FrameParser.parseFrame metadata.StreamInfo
+            return! decodeFrame metadata
         }
 
     stream |> Parser.run decodeFlac
 
-let callback (waveBuffer: byte array) requestedBytes pos =
-    let startPos = pos * requestedBytes
-    let endPos = startPos + requestedBytes
-    waveBuffer[startPos .. endPos - 1], pos + 1
 
-let format =
-    { SampleRate = 44100.0
-      Channels = 2u
-      BitDepth = 16u }
-
-let player =
-    new Player<int>(format, 2048u, callback (WaveFile.getWaveBytes "circle.wav"), 0)
-
+// let callback (waveBuffer: byte array) requestedBytes pos =
+//     let startPos = pos * requestedBytes
+//     let endPos = startPos + requestedBytes
+//     waveBuffer[startPos .. endPos - 1], pos + 1
+//
+// let format =
+//     { SampleRate = 44100.0
+//       Channels = 2u
+//       BitDepth = 16u }
+//
+// let player =
+//     new Player<int>(format, 2048u, callback (WaveFile.getWaveBytes "circle.wav"), 0)
+//
 // printfn "Playing..."
 // player.Start()
-// // Task.Delay((3 * 60 + 53) * 1000).Wait()
+// Task.Delay((3 * 60 + 53) * 1000).Wait()
 // printfn "Stopping..."
 // player.Stop()
 
 match decodeFile "circle.flac" with
-| Ok data -> printfn $"Frame: {data}"
+| Ok data -> printfn $"Frame: %A{data}"
 | Error e -> printfn $"Error: {e}"
