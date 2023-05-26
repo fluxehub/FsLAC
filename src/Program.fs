@@ -12,7 +12,7 @@ let openFile name =
     let file = File.OpenRead(name)
     BitStream(new BinaryReader(file))
 
-let stream = openFile "get.flac"
+let stream = openFile "output.flac"
 
 let metadata =
     match Parser.run MetadataParser.parseMetadata stream with
@@ -37,10 +37,15 @@ let callback requestedSamples _ =
 let format =
     { SampleRate = float metadata.StreamInfo.SampleRate
       Channels = metadata.StreamInfo.Channels
-      BitDepth = 16u }
+      BitDepth = metadata.StreamInfo.BitDepth }
 
-let player = new Player<unit>(format, 4096u, callback, ())
+// Variable block size is not implemented yet
+assert (metadata.StreamInfo.MaxBlockSize = metadata.StreamInfo.MinBlockSize)
 
+let player =
+    new Player<unit>(format, metadata.StreamInfo.MaxBlockSize, callback, ())
+
+printfn $"{metadata.StreamInfo}"
 printfn "Playing..."
 player.Start()
 Task.Delay(-1).Wait()
