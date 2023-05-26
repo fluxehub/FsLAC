@@ -60,8 +60,17 @@ let private parseBlocks =
 
     loop []
 
+let checkMagic =
+    parse {
+        let! magic = Parser.readBytes 4
+
+        if magic <> "fLaC"B then
+            return! Parser.error "Not a valid FLAC file"
+    }
+
 let parseMetadata =
     parse {
+        do! checkMagic
         // The stream info block is always the first block
         let! streamInfoBlock, streamInfo = parseStreamInfoBlock
 

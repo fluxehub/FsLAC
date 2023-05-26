@@ -8,58 +8,41 @@ open FsLAC.Parser.Metadata
 open FsLAC.Player
 open FsLAC.Types
 
-let checkMagic =
-    parse {
-        let! magic = Parser.readBytes 4
-
-        if magic <> "fLaC"B then
-            return! Parser.error "Not a valid FLAC file"
-    }
-
 let openFile name =
     let file = File.OpenRead(name)
     BitStream(new BinaryReader(file))
 
-let decodeFile filename =
-    let stream = openFile filename
+let stream = openFile "get.flac"
 
-    let decodeFrame metadata =
-        parse {
-            return!
-                FrameParser.parseFrame metadata.StreamInfo
-                |> Parser.map (Decoder.decodeFrame true)
-        }
+let metadata =
+    match Parser.run MetadataParser.parseMetadata stream with
+    | Ok metadata -> metadata
+    | Error e -> failwith e
 
-    let decodeFlac =
-        parse {
-            do! checkMagic
-            let! metadata = MetadataParser.parseMetadata
-            return! decodeFrame metadata
-        }
+let mutex = new System.Threading.Mutex()
 
-    stream |> Parser.run decodeFlac
+let parseFrame stream =
+    match Parser.run (FrameParser.parseFrame metadata.StreamInfo) stream with
+    | Ok frame -> frame
+    | Error e -> failwith e
 
+let callback requestedSamples _ =
+    mutex.WaitOne() |> ignore
+    let frame = parseFrame stream
 
-let callback requestedSamples (left, right) =
-    let leftSamples, leftTail = List.splitAt requestedSamples left
-    let rightSamples, rightTail = List.splitAt requestedSamples right
-    [ leftSamples; rightSamples ], (leftTail, rightTail)
+    let decoded = Decoder.decodeFrame true frame
+    mutex.ReleaseMutex()
+    decoded, ()
 
 let format =
-    { SampleRate = 44100.0
-      Channels = 2u
+    { SampleRate = float metadata.StreamInfo.SampleRate
+      Channels = metadata.StreamInfo.Channels
       BitDepth = 16u }
 
-let [ left; right ] = WaveFile.getWaveBytes "circle.wav"
-
-let player = new Player<int list * int list>(format, 2048u, callback, (left, right))
+let player = new Player<unit>(format, 4096u, callback, ())
 
 printfn "Playing..."
 player.Start()
-Task.Delay((3 * 60 + 53) * 1000).Wait()
+Task.Delay(-1).Wait()
 printfn "Stopping..."
 player.Stop()
-
-match decodeFile "circle.flac" with
-| Ok data -> printfn $"Frame: %A{data}"
-| Error e -> printfn $"Error: {e}"

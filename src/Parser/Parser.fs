@@ -35,7 +35,7 @@ type BitStream(reader: BinaryReader) =
 
     member this.SkipToAlignment() =
         if bitCount % 8 <> 0 then
-            this.ReadBits(8 - (bitCount % 8)) |> ignore
+            this.ReadBits(bitCount % 8) |> ignore
 
 type Parser<'ok, 'err> = Parser of (BitStream -> Result<'ok, 'err>)
 
@@ -148,15 +148,13 @@ module ParseCE =
     let parse = Parser.ParserBuilder()
 
 module List =
-    open Parser
+    let sequenceParser list =
+        let rec loop acc list stream =
+            match list with
+            | [] -> Ok(List.rev acc)
+            | Parser(p) :: list ->
+                match p stream with
+                | Ok value -> loop (value :: acc) list stream
+                | Error err -> Error err
 
-    let traverseParser decoder list =
-        let (>>=) f x = parse.Bind(f, x)
-        let init = ok []
-
-        let folder head tail =
-            decoder head >>= (fun head -> tail >>= (fun tail -> ok (head :: tail)))
-
-        List.foldBack folder list init
-
-    let sequenceParser list = traverseParser id list
+        Parser(loop [] list)

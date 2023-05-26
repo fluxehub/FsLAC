@@ -23,7 +23,6 @@
         <Compile Include="src\Parser\Frame\Metadata.fs" />
         <Compile Include="src\Parser\Frame\FrameParser.fs" />
         <Compile Include="src\Decoder\Decoder.fs" />
-        <Compile Include="src\WaveFile.fs" />
         <Compile Include="src\Player.fs" />
         <Compile Include="src\Program.fs" />
         <Content Include="README.md" />

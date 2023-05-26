@@ -29,15 +29,16 @@ let private predictSample previous coefficients =
     assert (List.length previous = List.length coefficients)
     List.fold2 (fun acc sample coefficient -> acc + (int64 sample * int64 coefficient)) 0L previous coefficients
 
-let private decodeSamples bitDepth warmUp coefficients shift residuals useResiduals =
-    let maskSample sample =
-        let bitDepth = int32 bitDepth
-        let masked = sample &&& ((1L <<< bitDepth) - 1L)
-        Utility.signExtend masked bitDepth
+let maskSample bitDepth sample =
+    let bitDepth = int32 bitDepth
+    let masked = sample &&& ((1L <<< bitDepth) - 1L)
+    Utility.signExtend masked bitDepth
 
-    let rec decodeLoop previous residuals =
+let private decodeSamples bitDepth warmUp coefficients shift residuals useResiduals =
+    // Accumulator style because decode needs to be tail recursive.
+    let rec decodeLoop samples previous residuals =
         match residuals with
-        | [] -> []
+        | [] -> List.rev samples
         | residual :: residuals ->
             let predictedSample = (predictSample previous coefficients) >>> shift
 
@@ -48,25 +49,31 @@ let private decodeSamples bitDepth warmUp coefficients shift residuals useResidu
                     predictedSample
 
             // Mask out the bits that are not part of the sample.
-            let sample = maskSample sample
+            let sample = maskSample bitDepth sample
 
             // This is anti-FP, but O(n) doesn't matter that much when n is max 4.
             let previous = List.tail previous @ [ sample ]
-            sample :: decodeLoop previous residuals
+            decodeLoop (sample :: samples) previous residuals
 
-    decodeLoop warmUp residuals
+    decodeLoop (List.rev warmUp) warmUp residuals
 
 let private getFixedCoefficients =
     function
     | 0u -> [ 0 ] // Realistically, there should be no coefficient as there's no prediction in order 0.
     // This makes it easier though.
     | 1u -> [ 1 ]
-    | 2u -> [ 2; -1 ]
-    | 3u -> [ 3; -3; 1 ]
-    | 4u -> [ 4; -6; 4; -1 ]
+    | 2u -> [ -1; 2 ]
+    | 3u -> [ 1; -3; 3 ]
+    | 4u -> [ -1; 4; -6; 4 ]
     | order -> failwith $"Invalid fixed order: {order}"
 
-let private decodeSubframe frameHeader bitDepth useResiduals subframe =
+let private decodeSubframe useResiduals frameHeader isSide subframe =
+    let bitDepth =
+        if isSide then
+            frameHeader.BitDepth + 1u
+        else
+            frameHeader.BitDepth
+
     let data =
         match subframe.Data with
         | Constant sample -> List.init (int frameHeader.BlockSize) (fun _ -> sample)
@@ -75,7 +82,8 @@ let private decodeSubframe frameHeader bitDepth useResiduals subframe =
             let coefficients = getFixedCoefficients subframe.Order
             let warmUp = if subframe.Order = 0u then [ 0L ] else subframe.WarmUp
             let residuals = decodeResiduals subframe.ResidualPartitions
-            decodeSamples bitDepth warmUp coefficients 0 residuals useResiduals
+            let samples = decodeSamples bitDepth warmUp coefficients 0 residuals useResiduals
+            if subframe.Order = 0u then List.tail samples else samples
         | Lpc subframe ->
             let coefficients = List.rev subframe.Coefficients // LPC coefficients are stored in reverse order
             let residuals = decodeResiduals subframe.ResidualPartitions
@@ -84,4 +92,39 @@ let private decodeSubframe frameHeader bitDepth useResiduals subframe =
     List.map (addWastedBits subframe.WastedBits) data
 
 let decodeFrame useResiduals (frame: Frame) =
-    decodeSubframe frame.Header frame.Header.BitDepth useResiduals frame.Subframes[0]
+    let decodeSubframe = decodeSubframe useResiduals frame.Header
+
+    match frame.Header.ChannelAssignment with
+    | Mono -> [ decodeSubframe false frame.Subframes[0] |> List.map int32 ]
+    | LeftRight ->
+        [ decodeSubframe false frame.Subframes[0] |> List.map int32
+          decodeSubframe false frame.Subframes[1] |> List.map int32 ]
+    | LeftSide ->
+        let left = decodeSubframe false frame.Subframes[0]
+        let side = decodeSubframe true frame.Subframes[1]
+
+        let right =
+            List.map2 (fun left side -> maskSample frame.Header.BitDepth (left - side)) left side
+
+        [ left |> List.map int32; right |> List.map int32 ]
+    | RightSide ->
+        let side = decodeSubframe true frame.Subframes[0]
+        let right = decodeSubframe false frame.Subframes[1]
+
+        let left =
+            List.map2 (fun side right -> maskSample frame.Header.BitDepth (right + side)) side right
+
+        [ left |> List.map int32; right |> List.map int32 ]
+    | MidSide ->
+        let mid = decodeSubframe false frame.Subframes[0]
+        let side = decodeSubframe true frame.Subframes[1]
+
+        let decorrelate operation (mid: int64) (side: int64) =
+            let mid = (mid <<< 1) ||| (side &&& 1)
+            let sample = operation mid side
+            sample >>> 1
+
+        let left = List.map2 (decorrelate (+)) mid side
+        let right = List.map2 (decorrelate (-)) mid side
+
+        [ left |> List.map int32; right |> List.map int32 ]
