@@ -25,9 +25,12 @@ let private decodeResidualPartition partition =
 let private decodeResiduals residuals =
     List.map decodeResidualPartition residuals |> List.concat
 
-let private predictSample previous coefficients =
-    assert (List.length previous = List.length coefficients)
-    List.fold2 (fun acc sample coefficient -> acc + (int64 sample * int64 coefficient)) 0L previous coefficients
+let private predictSample previous =
+    function
+    | [] -> 0L
+    | coefficients ->
+        assert (List.length previous = List.length coefficients)
+        List.fold2 (fun acc sample coefficient -> acc + (int64 sample * int64 coefficient)) 0L previous coefficients
 
 let maskSample bitDepth sample =
     let bitDepth = int32 bitDepth
@@ -51,16 +54,19 @@ let private decodeSamples bitDepth warmUp coefficients shift residuals useResidu
             // Mask out the bits that are not part of the sample.
             let sample = maskSample bitDepth sample
 
-            // This is anti-FP, but O(n) doesn't matter that much when n is max 4.
-            let previous = List.tail previous @ [ sample ]
+            let previous =
+                match previous with
+                | [] -> [] // Order 0
+                // This is anti-FP, but O(n) doesn't matter that much when n is max 32.
+                | _ :: previous -> previous @ [ sample ]
+
             decodeLoop (sample :: samples) previous residuals
 
     decodeLoop (List.rev warmUp) warmUp residuals
 
 let private getFixedCoefficients =
     function
-    | 0u -> [ 0 ] // Realistically, there should be no coefficient as there's no prediction in order 0.
-    // This makes it easier though.
+    | 0u -> []
     | 1u -> [ 1 ]
     | 2u -> [ -1; 2 ]
     | 3u -> [ 1; -3; 3 ]
@@ -80,10 +86,8 @@ let private decodeSubframe useResiduals frameHeader isSide subframe =
         | Verbatim samples -> samples
         | Fixed subframe ->
             let coefficients = getFixedCoefficients subframe.Order
-            let warmUp = if subframe.Order = 0u then [ 0L ] else subframe.WarmUp
             let residuals = decodeResiduals subframe.ResidualPartitions
-            let samples = decodeSamples bitDepth warmUp coefficients 0 residuals useResiduals
-            if subframe.Order = 0u then List.tail samples else samples
+            decodeSamples bitDepth subframe.WarmUp coefficients 0 residuals useResiduals
         | Lpc subframe ->
             let coefficients = List.rev subframe.Coefficients // LPC coefficients are stored in reverse order
             let residuals = decodeResiduals subframe.ResidualPartitions
