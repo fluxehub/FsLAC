@@ -216,7 +216,6 @@ let parseFrameHeader (streamInfo: StreamInfo) =
               FrameOrSampleNumber = frameOrSampleNumber
               CRC = crc }
 
-        // Ignoring this check for now as the example files do not match the stream info
-        // do! checkFrameHeader header streamInfo
+        do! checkFrameHeader header streamInfo
         return header
     }
